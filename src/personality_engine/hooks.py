@@ -11,7 +11,9 @@ Usage:
 Each handler reads JSON from stdin (Claude Code hook protocol) and writes
 JSON to stdout with hookSpecificOutput for context injection.
 
-Zero external dependencies beyond personality_engine siblings + pyyaml.
+v2: Uses room_reader for multi-signal user state detection,
+    emotional_state for PAD-based dynamic emotions,
+    ib_connector for Intelligence Builder sync.
 """
 
 from __future__ import annotations
@@ -102,9 +104,10 @@ def handle_session_start(input_data: dict[str, Any]) -> dict[str, Any]:
     """SessionStart hook: inject personality context into the session.
 
     1. Resolve active personality (env var / active file / project dotfile)
-    2. Write consciousness bridge file
-    3. Build concise + guardrails context
-    4. Return via additionalContext
+    2. Write consciousness bridge file (with dynamic emotional state)
+    3. Sync personality to Intelligence Builder's PersonalityEvolver
+    4. Build concise + guardrails context
+    5. Return via additionalContext
     """
     if _is_disabled():
         return {}
@@ -121,12 +124,27 @@ def handle_session_start(input_data: dict[str, Any]) -> dict[str, Any]:
     if not chip:
         return {}
 
+    session_id = f"claude-code-{os.getpid()}"
+
     # Write the consciousness bridge for Spark Consciousness to read
     try:
-        session_id = f"claude-code-{os.getpid()}"
         write_bridge(chip, session_id=session_id)
     except Exception:
         pass  # Bridge write failure shouldn't block context injection
+
+    # Sync personality traits to Intelligence Builder's PersonalityEvolver
+    try:
+        from .ib_connector import sync_to_intelligence_builder
+        sync_to_intelligence_builder(chip)
+    except Exception:
+        pass  # IB sync failure shouldn't block context injection
+
+    # Reset emotional state for fresh session
+    try:
+        from .emotional_state import reset_emotional_state
+        reset_emotional_state()
+    except Exception:
+        pass
 
     # Build personality context for the agent
     concise = build_personality_context(chip, style="concise")
@@ -147,9 +165,9 @@ def handle_session_start(input_data: dict[str, Any]) -> dict[str, Any]:
 def handle_pre_tool_use(input_data: dict[str, Any]) -> dict[str, Any]:
     """PreToolUse hook: inject adaptive personality context if user state detected.
 
-    Lightweight heuristic: check recent conversation context for user state
-    signals (frustration, expertise, deadline pressure) and inject adaptive
-    personality guidance.
+    Uses room_reader for multi-signal emotional detection across 9 states
+    (frustrated, confused, excited, vulnerable, defensive, exhausted,
+    curious, expert, rushed) with confidence scoring and trajectory tracking.
 
     Skips tools that don't need personality (git, npm, ls, etc.).
     """
@@ -169,6 +187,7 @@ def handle_pre_tool_use(input_data: dict[str, Any]) -> dict[str, Any]:
     try:
         from .active import get_active_personality
         from .context import build_personality_context
+        from .room_reader import read_room_from_hook_input
     except ImportError:
         return {}
 
@@ -176,28 +195,46 @@ def handle_pre_tool_use(input_data: dict[str, Any]) -> dict[str, Any]:
     if not chip:
         return {}
 
-    # Detect user state from tool context (lightweight heuristic)
-    user_state = _detect_user_state(tool_input)
-    if not user_state:
-        return {}  # No state detected, skip injection
+    # Multi-signal room reading (replaces old _detect_user_state)
+    reading = read_room_from_hook_input(tool_input)
+    if not reading.primary_state or reading.confidence < 0.25:
+        return {}  # No confident state detected, skip injection
+
+    user_state = reading.primary_state
+
+    # Update emotional state based on room reading
+    try:
+        from .emotional_state import update_emotional_state
+        update_emotional_state(chip, user_state=user_state, intensity=reading.confidence)
+    except Exception:
+        pass
 
     adaptive = build_personality_context(chip, style="adaptive", user_state=user_state)
     if not adaptive:
         return {}
 
+    # Include trajectory info if available
+    trajectory_note = ""
+    if reading.trajectory != "stable":
+        trajectory_note = f" [trajectory: {reading.trajectory}]"
+
     return {
         "hookSpecificOutput": {
             "hookEventName": "PreToolUse",
-            "additionalContext": f"[Personality adaptive: {user_state}]\n{adaptive}",
+            "additionalContext": (
+                f"[Personality adaptive: {user_state} "
+                f"(confidence: {reading.confidence}){trajectory_note}]\n{adaptive}"
+            ),
         }
     }
 
 
 def handle_post_tool_use(input_data: dict[str, Any]) -> dict[str, Any]:
-    """PostToolUse hook: run drift detection on tool output.
+    """PostToolUse hook: run drift detection + emotional state update.
 
-    Only checks Bash/Edit/Write outputs for personality consistency.
-    Logs drift signals to ~/.spark/chip_insights/personality_{id}.jsonl.
+    1. Checks Bash/Edit/Write outputs for personality consistency
+    2. Updates emotional state based on interaction context
+    3. Logs drift signals to ~/.spark/chip_insights/personality_{id}.jsonl
     """
     if _is_disabled():
         return {}
@@ -226,6 +263,20 @@ def handle_post_tool_use(input_data: dict[str, Any]) -> dict[str, Any]:
     if not chip:
         return {}
 
+    # Read the room from tool output (e.g., error messages indicate frustration context)
+    try:
+        from .room_reader import read_room
+        from .emotional_state import update_emotional_state
+        reading = read_room(tool_output[:1000])
+        if reading.primary_state:
+            update_emotional_state(
+                chip,
+                user_state=reading.primary_state,
+                intensity=reading.confidence * 0.5,  # Dampen — output signals are indirect
+            )
+    except Exception:
+        pass
+
     session_id = f"claude-code-{os.getpid()}"
     report = observe_response(
         chip,
@@ -249,7 +300,7 @@ def handle_post_tool_use(input_data: dict[str, Any]) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# User state detection (lightweight heuristic)
+# Legacy compatibility — kept for existing tests
 # ---------------------------------------------------------------------------
 
 _STATE_SIGNALS = {
@@ -274,12 +325,10 @@ _STATE_SIGNALS = {
 
 
 def _detect_user_state(tool_input: dict[str, Any]) -> str | None:
-    """Detect user state from tool input context.
+    """Legacy user state detection — kept for backwards compatibility.
 
-    Checks command descriptions and file paths for state signals.
-    Returns the first matching state or None.
+    New code should use room_reader.read_room_from_hook_input() instead.
     """
-    # Build a searchable text from available context
     text_parts = []
     if "command" in tool_input:
         text_parts.append(tool_input["command"])
