@@ -77,7 +77,7 @@ def _build_concise(chip: PersonalityChip, user_state: str = None) -> str:
     if user_state:
         adaptive_line = _get_adaptive_instruction(chip, user_state)
         if adaptive_line:
-            lines.append(f"[User state: {user_state}] → {adaptive_line}")
+            lines.append(f"[User state: {user_state}] -> {adaptive_line}")
 
     return "\n".join(lines)
 
@@ -124,7 +124,7 @@ def _build_detailed(chip: PersonalityChip, user_state: str = None) -> str:
         for s in chip.strengths:
             line = f"- **{s['trait']}**: {s.get('description', '')}"
             if s.get("expression"):
-                line += f" → *{s['expression']}*"
+                line += f" -> *{s['expression']}*"
             s_lines.append(line)
         sections.append("### Strengths\n" + "\n".join(s_lines))
 
@@ -133,7 +133,7 @@ def _build_detailed(chip: PersonalityChip, user_state: str = None) -> str:
         for v in chip.vulnerabilities:
             line = f"- **{v['trait']}**: {v.get('description', '')}"
             if v.get("mitigation"):
-                line += f" → Mitigation: *{v['mitigation']}*"
+                line += f" -> Mitigation: *{v['mitigation']}*"
             v_lines.append(line)
         sections.append("### Vulnerabilities\n" + "\n".join(v_lines))
 
@@ -160,7 +160,7 @@ def _build_detailed(chip: PersonalityChip, user_state: str = None) -> str:
     if user_state:
         adaptive_line = _get_adaptive_instruction(chip, user_state)
         if adaptive_line:
-            sections.append(f"### Active Adaptation\n[User state: {user_state}] → {adaptive_line}")
+            sections.append(f"### Active Adaptation\n[User state: {user_state}] -> {adaptive_line}")
 
     return "\n\n".join(sections)
 
@@ -200,14 +200,14 @@ def _build_adaptive(chip: PersonalityChip, user_state: str = None) -> str:
     if not user_state:
         return _build_concise(chip)
 
-    lines = [f"## {chip.name} — Adaptive Mode"]
+    lines = [f"## {chip.name} - Adaptive Mode"]
 
     instruction = _get_adaptive_instruction(chip, user_state)
     if instruction:
         lines.append(f"Detected state: **{user_state}**")
         lines.append(instruction)
     else:
-        lines.append(f"No specific adaptation for state '{user_state}' — using defaults.")
+        lines.append(f"No specific adaptation for state '{user_state}' - using defaults.")
         lines.append(f"Voice: {chip.voice_signature}" if chip.voice_signature else "")
 
     return "\n".join(lines)

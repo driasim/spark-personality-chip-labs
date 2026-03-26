@@ -184,7 +184,7 @@ def validate_personality(spec: dict) -> list[str]:
                 else:
                     for key in triggers:
                         if key not in ("energizes", "drains", "calms"):
-                            errors.append(f"Unknown trigger category '{key}' — use energizes/drains/calms")
+                            errors.append(f"Unknown trigger category '{key}' - use energizes/drains/calms")
                         elif not isinstance(triggers[key], list):
                             errors.append(f"triggers.{key} must be a list")
 
@@ -256,7 +256,7 @@ def validate_personality(spec: dict) -> list[str]:
     adaptive = spec.get("adaptive")
     if adaptive:
         if not isinstance(adaptive, dict):
-            errors.append("adaptive must be a dict of situation → response mappings")
+            errors.append("adaptive must be a dict of situation -> response mappings")
         else:
             for situation, response in adaptive.items():
                 if not isinstance(response, dict):

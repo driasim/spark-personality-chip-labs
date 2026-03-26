@@ -63,9 +63,9 @@ def observe_response(
 
     recommendation = None
     if drift_score >= 0.6:
-        recommendation = "High drift detected — consider re-grounding agent with personality context."
+        recommendation = "High drift detected - consider re-grounding agent with personality context."
     elif drift_score >= 0.3:
-        recommendation = "Moderate drift — review adaptive behavior triggers."
+        recommendation = "Moderate drift - review adaptive behavior triggers."
 
     report = {
         "personality_id": chip.id,
@@ -135,7 +135,7 @@ def _check_anti_patterns(chip: PersonalityChip, text: str) -> list[dict]:
                     if detector in text_lower:
                         signals.append({
                             "type": "anti_pattern_violation",
-                            "detail": f"Violated: '{ap}' — detected '{detector}'",
+                            "detail": f"Violated: '{ap}' - detected '{detector}'",
                             "severity": 0.7,
                         })
                         break  # One violation per anti-pattern is enough

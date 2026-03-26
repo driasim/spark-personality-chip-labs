@@ -88,7 +88,7 @@ def load_all_personalities(
     chips = []
     for entry in sorted(directory.iterdir()):
         try:
-            if entry.is_file() and entry.name.endswith(".personality.yaml"):
+            if entry.is_file() and entry.name.endswith(".personality.yaml") and not entry.name.startswith("_"):
                 chip = load_personality(entry)
                 if chip:
                     chips.append(chip)
