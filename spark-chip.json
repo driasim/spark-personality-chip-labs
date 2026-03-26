@@ -1,0 +1,20 @@
+{
+  "schema_version": "spark-chip.v1",
+  "chip_name": "spark-personality-chip-labs",
+  "domain": "personality",
+  "version": "0.1.0",
+  "capabilities": ["evaluate", "suggest", "packets"],
+  "commands": {},
+  "frontier": {
+    "enabled": true,
+    "allowed_mutations": {
+      "trait_ranges": "Explore optimal OCEAN trait boundaries for agent archetypes",
+      "eq_dimensions": "Research emotional intelligence dimension effectiveness",
+      "adaptive_triggers": "Discover new adaptive behavior triggers"
+    },
+    "required_fields": ["identity.id", "identity.name", "traits"],
+    "field_patterns": {
+      "identity.id": "^[a-z][a-z0-9-]{2,48}$"
+    }
+  }
+}
