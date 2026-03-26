@@ -1,11 +1,11 @@
-"""Tests for consciousness bridge."""
+"""Tests for consciousness bridge (bridge.v1 contract)."""
 
 import json
 import pytest
 from pathlib import Path
 
-from src.personality_engine.schema import build_personality, SCHEMA_VERSION
-from src.personality_engine.bridge import (
+from personality_engine.schema import build_personality, SCHEMA_VERSION
+from personality_engine.bridge import (
     build_bridge_payload,
     write_bridge,
     read_bridge,
@@ -26,12 +26,21 @@ def _make_chip():
             "extraversion": 0.40,
             "neuroticism": 0.25,
             "agreeableness": 0.65,
+            "conscientiousness": 0.70,
         },
         "emotional_profile": {
             "self_awareness": 0.85,
+            "self_regulation": 0.70,
+            "social_awareness": 0.60,
             "empathy_style": "reflective",
             "emotional_range": {"curiosity": 0.90},
             "triggers": {"energizes": ["patterns"]},
+        },
+        "preferences": {
+            "communication": {
+                "verbosity": "moderate",
+                "formality": "professional",
+            },
         },
         "consciousness": {
             "default_mood": "oracle",
@@ -47,63 +56,155 @@ def _make_chip():
     })
 
 
-class TestBridgePayload:
+class TestBridgeV1Schema:
+    """Tests that the payload matches bridge.v1 contract exactly."""
 
     def test_schema_version(self):
         chip = _make_chip()
         payload = build_bridge_payload(chip)
-        assert payload["schema"] == "emotional_context.v1"
+        assert payload["schema_version"] == "bridge.v1"
 
-    def test_personality_id(self):
+    def test_source(self):
         chip = _make_chip()
         payload = build_bridge_payload(chip)
-        assert payload["personality_id"] == "bridge-test"
+        assert payload["source"] == "spark-personality"
 
-    def test_emotional_state(self):
+    def test_generated_at(self):
+        chip = _make_chip()
+        payload = build_bridge_payload(chip)
+        assert "generated_at" in payload
+        assert "T" in payload["generated_at"]  # ISO format
+
+    def test_session(self):
+        chip = _make_chip()
+        payload = build_bridge_payload(chip, session_id="test-session")
+        assert payload["session"]["id"] == "test-session"
+        assert payload["session"]["scope"] == "runtime"
+
+    def test_meta(self):
+        chip = _make_chip()
+        payload = build_bridge_payload(chip)
+        assert payload["meta"]["ttl_seconds"] == 120
+        assert payload["meta"]["personality_id"] == "bridge-test"
+        assert payload["meta"]["personality_name"] == "BridgeTest"
+
+
+class TestEmotionalState:
+
+    def test_mood(self):
         chip = _make_chip()
         payload = build_bridge_payload(chip)
         state = payload["emotional_state"]
         assert state["mood"] == "oracle"
-        assert state["volatility"] == 0.25
-        assert state["continuity_influence"] == 0.30
-        assert 0.0 < state["intensity"] < 1.0
 
-    def test_guidance_hints(self):
+    def test_intensity_in_range(self):
         chip = _make_chip()
         payload = build_bridge_payload(chip)
-        hints = payload["guidance_hints"]
-        assert hints["empathy_style"] == "reflective"
-        assert hints["verbosity"] in ("terse", "moderate", "detailed")
+        assert 0.0 < payload["emotional_state"]["intensity"] < 1.0
+
+    def test_continuity_influence(self):
+        chip = _make_chip()
+        payload = build_bridge_payload(chip)
+        assert payload["emotional_state"]["continuity_influence"] == 0.30
+
+    def test_primary_emotion(self):
+        chip = _make_chip()
+        payload = build_bridge_payload(chip)
+        assert payload["emotional_state"]["primary_emotion"] == "contemplative"
+
+    def test_confidence(self):
+        chip = _make_chip()
+        payload = build_bridge_payload(chip)
+        assert payload["emotional_state"]["confidence"] == 0.85
+
+    def test_staleness_seconds(self):
+        chip = _make_chip()
+        payload = build_bridge_payload(chip)
+        assert payload["emotional_state"]["staleness_seconds"] == 0
+
+
+class TestGuidance:
+
+    def test_response_pace(self):
+        chip = _make_chip()
+        payload = build_bridge_payload(chip)
+        assert payload["guidance"]["response_pace"] in (
+            "slow", "measured", "balanced", "lively"
+        )
+
+    def test_verbosity_mapping(self):
+        chip = _make_chip()
+        payload = build_bridge_payload(chip)
+        # moderate -> medium
+        assert payload["guidance"]["verbosity"] == "medium"
+
+    def test_tone_shape_valid(self):
+        chip = _make_chip()
+        payload = build_bridge_payload(chip)
+        assert payload["guidance"]["tone_shape"] in (
+            "reassuring_and_clear", "calm_focus", "encouraging", "grounded_warm"
+        )
+
+    def test_ask_clarifying_question(self):
+        chip = _make_chip()
+        payload = build_bridge_payload(chip)
+        assert payload["guidance"]["ask_clarifying_question"] is False
+
+
+class TestMission:
+
+    def test_mission_anchor(self):
+        chip = _make_chip()
+        payload = build_bridge_payload(chip)
+        assert "BridgeTest" in payload["mission"]["anchor"]
+        assert "oracle" in payload["mission"]["anchor"]
+
+    def test_mission_kernel(self):
+        chip = _make_chip()
+        payload = build_bridge_payload(chip)
+        kernel = payload["mission"]["kernel"]
+        assert kernel["non_harm"] is True
+        assert kernel["service"] is True
+        assert kernel["clarity"] is True
+
+
+class TestBoundaries:
+
+    def test_boundaries_structure(self):
+        chip = _make_chip()
+        payload = build_bridge_payload(chip)
+        b = payload["boundaries"]
+        assert b["user_guided"] is True
+        assert b["no_autonomous_objectives"] is True
+        assert b["no_manipulative_affect"] is True
+        assert isinstance(b["max_influence"], (int, float))
+        assert 0.0 < b["max_influence"] <= 1.0
+
+
+class TestPersonalityExt:
 
     def test_shadow_config(self):
         chip = _make_chip()
         payload = build_bridge_payload(chip)
-        shadow = payload["shadow_config"]
+        shadow = payload["personality_ext"]["shadow_config"]
         assert shadow["susceptibility"]["overconfidence"] == 0.20
         assert shadow["reframe_preference"] == "redirect"
 
     def test_emotions_config(self):
         chip = _make_chip()
         payload = build_bridge_payload(chip)
-        emotions = payload["emotions_config"]
+        emotions = payload["personality_ext"]["emotions_config"]
         assert emotions["carry_over_weight"] == 0.30
         assert emotions["emotional_range"]["curiosity"] == 0.90
         assert emotions["baseline_mood"] == "oracle"
+        assert emotions["mood_volatility"] == 0.25
 
-    def test_safety_boundaries(self):
+    def test_safety_ext(self):
         chip = _make_chip()
         payload = build_bridge_payload(chip)
-        safety = payload["safety_boundaries"]
-        assert safety["no_autonomous_objectives"] is True
-        assert safety["no_manipulation"] is True
-        assert safety["personality_never_overrides_safety"] is True
-
-    def test_mission_kernel(self):
-        chip = _make_chip()
-        payload = build_bridge_payload(chip)
-        mission = payload["mission_kernel"]
-        assert "No manipulation" in mission["harm_avoidance"]
-        assert mission["risk_level"] == "low"
+        safety = payload["personality_ext"]["safety"]
+        assert "No manipulation" in safety["harm_avoidance"]
+        assert safety["risk_level"] == "low"
 
 
 class TestBridgeIO:
@@ -115,7 +216,8 @@ class TestBridgeIO:
 
         payload = read_bridge(bridge_path)
         assert payload is not None
-        assert payload["personality_id"] == "bridge-test"
+        assert payload["schema_version"] == "bridge.v1"
+        assert payload["meta"]["personality_id"] == "bridge-test"
 
     def test_clear(self, tmp_path):
         chip = _make_chip()
@@ -129,3 +231,38 @@ class TestBridgeIO:
     def test_read_nonexistent(self, tmp_path):
         payload = read_bridge(tmp_path / "nope.json")
         assert payload is None
+
+
+class TestVerbosityMapping:
+    """Test all verbosity enum mappings."""
+
+    def test_terse_to_concise(self):
+        chip = build_personality({
+            "identity": {"id": "verb-test", "name": "VerbTest"},
+            "preferences": {"communication": {"verbosity": "terse"}},
+        })
+        payload = build_bridge_payload(chip)
+        assert payload["guidance"]["verbosity"] == "concise"
+
+    def test_moderate_to_medium(self):
+        chip = build_personality({
+            "identity": {"id": "verb-test", "name": "VerbTest"},
+            "preferences": {"communication": {"verbosity": "moderate"}},
+        })
+        payload = build_bridge_payload(chip)
+        assert payload["guidance"]["verbosity"] == "medium"
+
+    def test_detailed_to_structured(self):
+        chip = build_personality({
+            "identity": {"id": "verb-test", "name": "VerbTest"},
+            "preferences": {"communication": {"verbosity": "detailed"}},
+        })
+        payload = build_bridge_payload(chip)
+        assert payload["guidance"]["verbosity"] == "structured"
+
+    def test_default_to_medium(self):
+        chip = build_personality({
+            "identity": {"id": "verb-test", "name": "VerbTest"},
+        })
+        payload = build_bridge_payload(chip)
+        assert payload["guidance"]["verbosity"] == "medium"

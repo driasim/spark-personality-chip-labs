@@ -4,7 +4,7 @@ import pytest
 import tempfile
 from pathlib import Path
 
-from src.personality_engine.loader import load_personality, load_all_personalities
+from personality_engine.loader import load_personality, load_all_personalities
 
 try:
     import yaml

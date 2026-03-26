@@ -1,8 +1,8 @@
 """Tests for personality context injector."""
 
 import pytest
-from src.personality_engine.schema import build_personality, SCHEMA_VERSION
-from src.personality_engine.context import build_personality_context
+from personality_engine.schema import build_personality, SCHEMA_VERSION
+from personality_engine.context import build_personality_context
 
 
 def _make_chip(**overrides):

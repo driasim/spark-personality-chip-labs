@@ -1,7 +1,7 @@
 """Tests for personality chip schema validation."""
 
 import pytest
-from src.personality_engine.schema import (
+from personality_engine.schema import (
     validate_personality,
     build_personality,
     PersonalityChip,

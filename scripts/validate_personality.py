@@ -11,11 +11,11 @@ import sys
 from pathlib import Path
 
 # Add project root to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from src.personality_engine.loader import load_personality, load_all_personalities
-from src.personality_engine.context import build_personality_context
-from src.personality_engine.bridge import build_bridge_payload
+from personality_engine.loader import load_personality, load_all_personalities
+from personality_engine.context import build_personality_context
+from personality_engine.bridge import build_bridge_payload
 
 
 def validate_file(path: Path) -> bool:

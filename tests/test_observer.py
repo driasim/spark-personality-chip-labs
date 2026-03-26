@@ -1,8 +1,8 @@
 """Tests for personality drift observer."""
 
 import pytest
-from src.personality_engine.schema import build_personality, SCHEMA_VERSION
-from src.personality_engine.observer import observe_response
+from personality_engine.schema import build_personality, SCHEMA_VERSION
+from personality_engine.observer import observe_response
 
 
 def _make_chip():

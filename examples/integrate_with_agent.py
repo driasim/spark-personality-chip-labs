@@ -15,13 +15,13 @@ import sys
 from pathlib import Path
 
 # Add project root
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from src.personality_engine.loader import load_personality
-from src.personality_engine.context import build_personality_context
-from src.personality_engine.bridge import write_bridge, build_bridge_payload
-from src.personality_engine.observer import observe_response
-from src.personality_engine.registry import PersonalityRegistry
+from personality_engine.loader import load_personality
+from personality_engine.context import build_personality_context
+from personality_engine.bridge import write_bridge, build_bridge_payload
+from personality_engine.observer import observe_response
+from personality_engine.registry import PersonalityRegistry
 
 
 def example_1_basic_usage():
@@ -82,13 +82,15 @@ def example_3_consciousness_bridge():
     # Build the bridge payload (in-memory, no file write)
     payload = build_bridge_payload(chip, session_id="demo-session")
 
-    print(f"\nPersonality: {payload['personality_name']}")
+    print(f"\nSchema: {payload['schema_version']}")
+    print(f"Personality: {payload['meta']['personality_name']}")
     print(f"Mood: {payload['emotional_state']['mood']}")
     print(f"Intensity: {payload['emotional_state']['intensity']}")
-    print(f"Volatility: {payload['emotional_state']['volatility']}")
-    print(f"Pace: {payload['guidance_hints']['response_pace']}")
-    print(f"Tone: {payload['guidance_hints']['tone_shape']}")
-    print(f"Shadow susceptibility: {payload['shadow_config']['susceptibility']}")
+    print(f"Primary emotion: {payload['emotional_state']['primary_emotion']}")
+    print(f"Pace: {payload['guidance']['response_pace']}")
+    print(f"Tone: {payload['guidance']['tone_shape']}")
+    print(f"Verbosity: {payload['guidance']['verbosity']}")
+    print(f"Shadow susceptibility: {payload['personality_ext']['shadow_config']['susceptibility']}")
 
     # In production, write to disk for Spark Consciousness to read:
     # write_bridge(chip, session_id="my-session")
