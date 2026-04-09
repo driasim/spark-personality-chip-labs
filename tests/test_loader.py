@@ -124,3 +124,14 @@ class TestLoadAll:
         chips = load_all_personalities(tmp_path)
         assert len(chips) == 1
         assert chips[0].id == "good-bot"
+
+
+@pytest.mark.skipif(not HAS_YAML, reason="PyYAML not installed")
+class TestRepoPersonalities:
+
+    def test_founder_operator_personality_loads(self):
+        repo_root = Path(__file__).resolve().parents[1]
+        chip = load_personality(repo_root / "personalities" / "founder-operator.personality.yaml")
+        assert chip.id == "founder-operator"
+        assert chip.name == "Founder Operator"
+        assert chip.voice_signature == "direct, calm, low-fluff, strategic"
