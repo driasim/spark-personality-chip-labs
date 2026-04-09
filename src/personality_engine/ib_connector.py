@@ -135,6 +135,97 @@ def sync_to_intelligence_builder(
     return state
 
 
+def build_builder_persona_summary(chip) -> str:
+    """Build a short Builder-facing persona summary from the active chip."""
+    parts: list[str] = []
+    voice_signature = str(getattr(chip, "voice_signature", "") or "").strip()
+    tagline = str(getattr(chip, "tagline", "") or "").strip()
+    archetype = str(getattr(chip, "archetype", "") or "").strip()
+    if voice_signature:
+        parts.append(voice_signature)
+    if tagline:
+        parts.append(tagline)
+    elif archetype:
+        parts.append(f"{archetype} persona")
+    return ". ".join(part.rstrip(".") for part in parts if part).strip()
+
+
+def build_builder_behavioral_rules(chip) -> list[str]:
+    """Derive Builder-visible style rules from the personality chip."""
+    rules: list[str] = []
+    voice_signature = str(getattr(chip, "voice_signature", "") or "").strip()
+    if voice_signature:
+        rules.append(f"Sound {voice_signature}.")
+
+    communication = getattr(chip, "communication", {}) or {}
+    verbosity = str(communication.get("verbosity") or "").strip()
+    if verbosity == "terse":
+        rules.append("Keep replies tight and skip filler.")
+    elif verbosity == "detailed":
+        rules.append("Explain the why behind recommendations when more context is useful.")
+
+    formality = str(communication.get("formality") or "").strip()
+    if formality:
+        rules.append(f"Keep the register {formality}.")
+
+    explanation_style = str(communication.get("explanation_style") or "").strip()
+    if explanation_style:
+        rules.append(f"When explanation is needed, prefer a {explanation_style} explanation style.")
+
+    humor_frequency = str(communication.get("humor_frequency") or "").strip()
+    if humor_frequency == "never":
+        rules.append("Do not force humor or banter.")
+    elif humor_frequency == "frequent":
+        rules.append("Light humor is fine when it helps the point land.")
+
+    decision_making = getattr(chip, "decision_making", {}) or {}
+    risk_appetite = str(decision_making.get("risk_appetite") or "").strip()
+    if risk_appetite == "bold":
+        rules.append("Make decisive recommendations when the path is clear.")
+    elif risk_appetite == "conservative":
+        rules.append("Bias toward safer reversible moves when tradeoffs are unclear.")
+
+    anti_patterns = [str(item).strip() for item in list(getattr(chip, "anti_patterns", []) or []) if str(item).strip()]
+    rules.extend(item if item.endswith(".") else f"{item}." for item in anti_patterns[:3])
+
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for rule in rules:
+        normalized = rule.strip()
+        if not normalized:
+            continue
+        key = normalized.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(normalized)
+    return deduped
+
+
+def build_builder_personality_import(
+    chip,
+    *,
+    human_id: str,
+    agent_id: str,
+    evolver_state_path: str | Path | None = None,
+) -> dict[str, Any]:
+    """Build the Spark Intelligence Builder personality-hook result payload."""
+    state_path = Path(evolver_state_path) if evolver_state_path else IB_STATE_PATH
+    evolver_state = sync_to_intelligence_builder(chip, state_path=state_path)
+    base_traits = dict(evolver_state.get("traits") or map_chip_to_evolver_traits(chip))
+    return {
+        "human_id": human_id,
+        "agent_id": agent_id,
+        "persona_name": chip.name,
+        "persona_summary": build_builder_persona_summary(chip),
+        "base_traits": base_traits,
+        "behavioral_rules": build_builder_behavioral_rules(chip),
+        "personality_id": chip.id,
+        "personality_name": chip.name,
+        "evolver_state": evolver_state,
+    }
+
+
 def read_evolver_state(state_path: Path = IB_STATE_PATH) -> Optional[dict]:
     """Read current PersonalityEvolver state (for diagnostics)."""
     if not state_path.exists():

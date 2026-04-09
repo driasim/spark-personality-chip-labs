@@ -1,0 +1,87 @@
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+from typing import Any
+
+from .active import get_active_personality
+from .ib_connector import build_builder_personality_import
+
+
+def handle_personality_hook(payload: dict[str, Any]) -> dict[str, Any]:
+    human_id = str(payload.get("human_id") or "").strip()
+    agent_id = str(payload.get("agent_id") or "").strip()
+    if not human_id or not agent_id:
+        raise ValueError("personality hook requires human_id and agent_id.")
+
+    chip = get_active_personality(project_dir=str(Path.cwd()))
+    if chip is None:
+        raise ValueError(
+            "No active personality chip is configured. Set SPARK_PERSONALITY, "
+            "write ~/.spark/active_personality.json, or add a project .personality file."
+        )
+
+    result = build_builder_personality_import(
+        chip,
+        human_id=human_id,
+        agent_id=agent_id,
+        evolver_state_path=payload.get("evolver_state_path"),
+    )
+    return {
+        "returncode": 0,
+        "stdout": (
+            f"personality_id: {result['personality_id']}\n"
+            f"persona_name: {result['persona_name']}\n"
+            f"behavioral_rules: {len(result['behavioral_rules'])}"
+        ),
+        "stderr": "",
+        "metrics": {
+            "behavioral_rule_count": len(result["behavioral_rules"]),
+            "trait_count": len(result["base_traits"]),
+        },
+        "result": result,
+    }
+
+
+def _write_output(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("hook", choices=["personality"])
+    parser.add_argument("--input", required=True)
+    parser.add_argument("--output", required=True)
+    args = parser.parse_args()
+
+    input_path = Path(args.input)
+    output_path = Path(args.output)
+    payload = json.loads(input_path.read_text(encoding="utf-8"))
+
+    try:
+        if args.hook != "personality":
+            raise ValueError(f"Unsupported hook: {args.hook}")
+        result = handle_personality_hook(payload)
+    except Exception as exc:
+        _write_output(
+            output_path,
+            {
+                "returncode": 1,
+                "stdout": "",
+                "stderr": str(exc),
+                "metrics": {},
+                "result": {},
+                "error": str(exc),
+            },
+        )
+        return 1
+
+    _write_output(output_path, result)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

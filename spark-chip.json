@@ -1,10 +1,13 @@
 {
   "schema_version": "spark-chip.v1",
+  "io_protocol": "spark-hook-io.v1",
   "chip_name": "spark-personality-chip-labs",
   "domain": "personality",
   "version": "0.1.0",
-  "capabilities": ["evaluate", "suggest", "packets"],
-  "commands": {},
+  "capabilities": ["evaluate", "suggest", "packets", "personality"],
+  "commands": {
+    "personality": ["python", "-m", "personality_engine.spark_hook", "personality"]
+  },
   "frontier": {
     "enabled": true,
     "allowed_mutations": {

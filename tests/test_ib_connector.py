@@ -6,6 +6,9 @@ from pathlib import Path
 
 from personality_engine.schema import PersonalityChip
 from personality_engine.ib_connector import (
+    build_builder_behavioral_rules,
+    build_builder_persona_summary,
+    build_builder_personality_import,
     map_chip_to_evolver_traits,
     sync_to_intelligence_builder,
     read_evolver_state,
@@ -100,6 +103,63 @@ class TestSyncToIntelligenceBuilder:
             chip = _make_chip()
             state = sync_to_intelligence_builder(chip, state_path=path)
             assert state["interaction_count"] == 0
+
+
+class TestBuildBuilderPersonalityImport:
+    def test_builds_builder_facing_persona_summary(self):
+        chip = _make_chip(
+            name="Artemis",
+            archetype="oracle",
+            voice_signature="precise, warm, unhurried",
+            tagline="I see the pattern before the problem.",
+        )
+        summary = build_builder_persona_summary(chip)
+        assert summary == "precise, warm, unhurried. I see the pattern before the problem"
+
+    def test_derives_behavioral_rules_from_chip_preferences(self):
+        chip = _make_chip(
+            voice_signature="direct, energetic, action-biased",
+            communication={
+                "verbosity": "terse",
+                "formality": "casual",
+                "explanation_style": "stepwise",
+                "humor_frequency": "never",
+            },
+            decision_making={"risk_appetite": "bold"},
+            anti_patterns=["Never blocks progress for theoretical concerns"],
+        )
+        rules = build_builder_behavioral_rules(chip)
+        assert "Sound direct, energetic, action-biased." in rules
+        assert "Keep replies tight and skip filler." in rules
+        assert "Keep the register casual." in rules
+        assert "When explanation is needed, prefer a stepwise explanation style." in rules
+        assert "Do not force humor or banter." in rules
+        assert "Make decisive recommendations when the path is clear." in rules
+        assert "Never blocks progress for theoretical concerns." in rules
+
+    def test_builds_import_payload_matching_builder_contract(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "personality_evolution_v1.json"
+            chip = _make_chip(
+                id="forge",
+                name="Forge",
+                voice_signature="direct, energetic, action-biased",
+                tagline="Ship it, learn, ship again.",
+            )
+            payload = build_builder_personality_import(
+                chip,
+                human_id="human:telegram:111",
+                agent_id="agent:human:telegram:111",
+                evolver_state_path=path,
+            )
+
+            assert payload["human_id"] == "human:telegram:111"
+            assert payload["agent_id"] == "agent:human:telegram:111"
+            assert payload["persona_name"] == "Forge"
+            assert payload["personality_id"] == "forge"
+            assert payload["base_traits"] == payload["evolver_state"]["traits"]
+            assert payload["behavioral_rules"]
+            assert path.exists()
 
 
 class TestReadEvolverState:
