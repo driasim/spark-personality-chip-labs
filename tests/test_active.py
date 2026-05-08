@@ -72,8 +72,9 @@ class TestResolveChain:
         dot_file = tmp_path / ".personality"
         dot_file.write_text("forge\n")
 
-        pid, ppath = _resolve_personality_id(project_dir=str(tmp_path))
-        assert pid == "forge"
+        with patch("personality_engine.active.ACTIVE_FILE", tmp_path / "nope.json"):
+            pid, ppath = _resolve_personality_id(project_dir=str(tmp_path))
+            assert pid == "forge"
 
     def test_nothing_active(self, tmp_path):
         """Returns None when nothing is configured."""
@@ -85,12 +86,13 @@ class TestResolveChain:
                 assert pid is None
                 assert ppath is None
 
-    def test_env_var_empty_skipped(self):
+    def test_env_var_empty_skipped(self, tmp_path):
         """Empty SPARK_PERSONALITY is treated as unset."""
         with patch.dict(os.environ, {"SPARK_PERSONALITY": "  "}):
-            pid, _ = _resolve_personality_id()
-            # Empty string should be skipped (stripped to "")
-            assert pid is None or pid == ""
+            with patch("personality_engine.active.ACTIVE_FILE", tmp_path / "nope.json"):
+                pid, _ = _resolve_personality_id()
+                # Empty string should be skipped (stripped to "")
+                assert pid is None or pid == ""
 
 
 class TestGetActivePersonality:
