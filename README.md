@@ -1,10 +1,10 @@
 # Spark Personality Chip Labs
 
-Modular personality chip system for Spark agents.
+Public personality chip lab for Spark agents.
 
-This repo defines portable personality chips that can be loaded by Spark Builder
-or another host runtime without hard-coding voice, emotional style, or behavior
-rules into the core agent.
+This repo defines portable personality chips that can be loaded by Spark Builder,
+`spark-character`, or another host runtime without hard-coding voice, emotional
+style, or behavior rules into the core agent.
 
 ## What This Provides
 
@@ -29,10 +29,16 @@ Keep these boundaries clear:
   evolution notes, private user preferences, runtime memory, transcripts, and
   any host Spark state under `~/.spark`
 - not included: live Spark runtime credentials, provider keys, Telegram tokens,
-  or private Spark Swarm runtime state
+  private Spark Swarm runtime state, or legacy `spark-voice-engine` assets
 
 Do not commit `.env` files, provider credentials, private transcripts, or
 runtime state snapshots.
+
+The current public relationship is:
+
+- `spark-personality-chip-labs` owns portable personality chip schemas and experiments.
+- `spark-character` owns Spark's default persona, provider overlays, scoring, and evolution gates.
+- `spark-voice-comms` owns speech I/O hooks and uses Spark character/personality context when a host runtime connects them.
 
 ## Install
 
