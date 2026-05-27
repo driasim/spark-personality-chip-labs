@@ -129,22 +129,22 @@ def handle_session_start(input_data: dict[str, Any]) -> dict[str, Any]:
     # Write the consciousness bridge for Spark Consciousness to read
     try:
         write_bridge(chip, session_id=session_id)
-    except Exception:
-        pass  # Bridge write failure shouldn't block context injection
+    except (ImportError, OSError) as exc:
+        sys.stderr.write(f"bridge write failed: {exc}\n")  # non-blocking
 
     # Sync personality traits to Intelligence Builder's PersonalityEvolver
     try:
         from .ib_connector import sync_to_intelligence_builder
         sync_to_intelligence_builder(chip)
-    except Exception:
-        pass  # IB sync failure shouldn't block context injection
+    except (ImportError, OSError) as exc:
+        sys.stderr.write(f"IB sync failed: {exc}\n")  # non-blocking
 
     # Reset emotional state for fresh session
     try:
         from .emotional_state import reset_emotional_state
         reset_emotional_state()
-    except Exception:
-        pass
+    except (ImportError, OSError, ValueError) as exc:
+        sys.stderr.write(f"emotional reset failed: {exc}\n")
 
     # Build personality context for the agent
     concise = build_personality_context(chip, style="concise")
@@ -206,8 +206,8 @@ def handle_pre_tool_use(input_data: dict[str, Any]) -> dict[str, Any]:
     try:
         from .emotional_state import update_emotional_state
         update_emotional_state(chip, user_state=user_state, intensity=reading.confidence)
-    except Exception:
-        pass
+    except (ImportError, OSError, ValueError) as exc:
+        sys.stderr.write(f"emotional update failed: {exc}\n")
 
     adaptive = build_personality_context(chip, style="adaptive", user_state=user_state)
     if not adaptive:
@@ -274,8 +274,8 @@ def handle_post_tool_use(input_data: dict[str, Any]) -> dict[str, Any]:
                 user_state=reading.primary_state,
                 intensity=reading.confidence * 0.5,  # Dampen — output signals are indirect
             )
-    except Exception:
-        pass
+    except (ImportError, OSError, ValueError) as exc:
+        sys.stderr.write(f"room read failed: {exc}\n")
 
     session_id = f"claude-code-{os.getpid()}"
     report = observe_response(
