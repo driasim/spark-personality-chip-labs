@@ -23,6 +23,8 @@ Lightweight: ~150 lines, pure math, no external APIs.
 from __future__ import annotations
 
 import json
+import os
+import tempfile
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -129,13 +131,23 @@ def _load_state() -> tuple[PADVector, float]:
 
 
 def _save_state(pad: PADVector) -> None:
-    """Persist emotional state to disk."""
+    """Persist emotional state to disk using atomic write."""
     _STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
     try:
-        _STATE_FILE.write_text(
-            json.dumps({"pad": pad.to_dict(), "updated_at": time.time()}),
-            encoding="utf-8",
+        data = json.dumps({"pad": pad.to_dict(), "updated_at": time.time()})
+        fd, tmp_path = tempfile.mkstemp(
+            dir=str(_STATE_FILE.parent), suffix=".tmp"
         )
+        try:
+            os.write(fd, data.encode("utf-8"))
+            os.fsync(fd)
+            os.close(fd)
+            os.replace(tmp_path, str(_STATE_FILE))
+        except BaseException:
+            os.close(fd) if not os.get_inheritable(fd) else None
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+            raise
     except OSError:
         pass
 
