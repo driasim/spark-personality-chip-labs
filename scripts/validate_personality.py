@@ -51,9 +51,11 @@ def validate_file(path: Path) -> bool:
     print("    --- Bridge Payload Summary ---")
     payload = build_bridge_payload(chip)
     es = payload["emotional_state"]
+    emotions_config = payload.get("personality_ext", {}).get("emotions_config", {})
+    volatility = es.get("volatility", emotions_config.get("mood_volatility", "unknown"))
     print(f"    mood: {es['mood']} | intensity: {es['intensity']} | "
-          f"volatility: {es['volatility']}")
-    hints = payload["guidance_hints"]
+          f"volatility: {volatility}")
+    hints = payload.get("guidance_hints", payload.get("guidance", {}))
     print(f"    pace: {hints['response_pace']} | tone: {hints['tone_shape']} | "
           f"verbosity: {hints['verbosity']}")
 
@@ -81,12 +83,20 @@ def main():
 
     elif target.is_dir():
         # Validate all chips in directory
-        files = sorted(target.glob("*.personality.yaml"))
+        files = sorted(f for f in target.glob("*.personality.yaml") if not f.name.startswith("_"))
         dirs = [d for d in sorted(target.iterdir())
                 if d.is_dir() and (d / "personality.yaml").exists()]
 
         total = len(files) + len(dirs)
         passed = 0
+
+        if total == 0:
+            print("  FAIL  no personality chips found")
+            print("        Expected *.personality.yaml files or directories containing personality.yaml.")
+            print("-" * 60)
+            print("  Results: 0/0 passed")
+            print("-" * 60)
+            sys.exit(1)
 
         for f in files:
             if validate_file(f):
