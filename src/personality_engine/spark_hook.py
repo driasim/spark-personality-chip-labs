@@ -63,7 +63,7 @@ def main() -> int:
 
     try:
         if args.hook != "personality":
-            raise ValueError(f"Unsupported hook: {args.hook}")
+            raise ValueError(f"Unsupported hook: {args.hook!r}. Supported hooks: 'personality'.")
         result = handle_personality_hook(payload)
     except Exception as exc:
         _write_output(
