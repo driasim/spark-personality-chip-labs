@@ -73,11 +73,21 @@ def write_bridge(
     Returns:
         The bridge payload dict that was written.
     """
+    import os
+    import tempfile
+
     payload = build_bridge_payload(chip, session_id)
 
     bridge_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(bridge_path, "w", encoding="utf-8") as f:
-        json.dump(payload, f, indent=2)
+    fd, tmp_path = tempfile.mkstemp(
+        dir=str(bridge_path.parent), suffix=".tmp"
+    )
+    try:
+        os.write(fd, json.dumps(payload, indent=2).encode("utf-8"))
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+    os.replace(tmp_path, str(bridge_path))
 
     return payload
 
