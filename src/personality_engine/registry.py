@@ -8,6 +8,7 @@ Storage: ~/.spark/personality_registry.json
 """
 
 import json
+import os
 from pathlib import Path
 from typing import Optional
 
@@ -113,7 +114,8 @@ class PersonalityRegistry:
             pass
 
     def _save_state(self) -> None:
-        """Persist registry state to disk."""
+        """Persist registry state to disk (atomic write)."""
+        import tempfile
         self._path.parent.mkdir(parents=True, exist_ok=True)
         state = {
             "active": self._active,
@@ -123,5 +125,12 @@ class PersonalityRegistry:
                 for chip in self._installed.values()
             ],
         }
-        with open(self._path, "w", encoding="utf-8") as f:
-            json.dump(state, f, indent=2)
+        fd, tmp_path = tempfile.mkstemp(
+            dir=str(self._path.parent), suffix=".tmp"
+        )
+        try:
+            os.write(fd, json.dumps(state, indent=2).encode("utf-8"))
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+        os.replace(tmp_path, str(self._path))
