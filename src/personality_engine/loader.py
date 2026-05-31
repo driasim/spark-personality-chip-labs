@@ -128,7 +128,12 @@ def _load_directory(directory: Path) -> dict:
     for filename, section_key in overlay_map.items():
         overlay_path = directory / filename
         if overlay_path.exists():
-            overlay_data = _load_yaml(overlay_path)
+            try:
+                overlay_data = _load_yaml(overlay_path)
+            except Exception:
+                # Overlay files are optional; skip on any load failure
+                # (malformed YAML, missing files, type errors, etc.)
+                continue
             if isinstance(overlay_data, dict):
                 # For list sections (vulnerabilities, strengths), replace entirely
                 if section_key in ("vulnerabilities", "strengths"):
