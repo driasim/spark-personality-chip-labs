@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Optional
 
 from .schema import PersonalityChip
+from .storage import atomic_write_json
 
 ACTIVE_FILE = Path.home() / ".spark" / "active_personality.json"
 CACHE_FILE = Path.home() / ".cache" / "personality-chips" / "active_cache.json"
@@ -281,8 +282,4 @@ def _write_cache(chip: PersonalityChip) -> None:
             data["personality_path"] = str(search_dir / chip.id)
             break
 
-    try:
-        with open(CACHE_FILE, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
-    except IOError:
-        pass
+    atomic_write_json(CACHE_FILE, data, raise_on_error=False)
