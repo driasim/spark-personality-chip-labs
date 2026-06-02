@@ -12,9 +12,10 @@ from personality_engine.active import (
     clear_active_personality,
     get_active_personality_id,
     clear_cache,
+    _write_cache,
     _resolve_personality_id,
 )
-from personality_engine.schema import SCHEMA_VERSION
+from personality_engine.schema import SCHEMA_VERSION, build_personality
 
 
 @pytest.fixture(autouse=True)
@@ -117,6 +118,22 @@ class TestGetActivePersonality:
 
         assert chip is not None
         assert chip.id == "test-active"
+
+    def test_cache_write_preserves_old_file_after_replace_failure(self, tmp_path):
+        cache_path = tmp_path / "active_cache.json"
+        old_payload = {"personality_id": "old", "cached_at": 1}
+        cache_path.write_text(json.dumps(old_payload), encoding="utf-8")
+        chip = build_personality({
+            "schema": SCHEMA_VERSION,
+            "identity": {"id": "test-active", "name": "TestActive"},
+        })
+
+        with patch("personality_engine.active.CACHE_FILE", cache_path):
+            with patch("personality_engine.storage.os.replace", side_effect=OSError("boom")):
+                _write_cache(chip)
+
+        assert json.loads(cache_path.read_text(encoding="utf-8")) == old_payload
+        assert list(tmp_path.glob("*.tmp")) == []
 
     def test_returns_none_when_not_found(self, tmp_path):
         """Returns None when personality id doesn't match any file."""
