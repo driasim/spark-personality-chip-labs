@@ -54,7 +54,7 @@ class PersonalityRegistry:
     def assign(self, agent_id: str, personality_id: str) -> None:
         """Assign a personality to an agent."""
         if personality_id not in self._installed:
-            raise ValueError(f"Personality '{personality_id}' not installed")
+            raise ValueError(self._missing_personality_message(personality_id))
         self._active[agent_id] = personality_id
         self._save_state()
 
@@ -73,7 +73,7 @@ class PersonalityRegistry:
     def set_default(self, personality_id: str) -> None:
         """Set the global default personality for agents without assignment."""
         if personality_id not in self._installed:
-            raise ValueError(f"Personality '{personality_id}' not installed")
+            raise ValueError(self._missing_personality_message(personality_id))
         self._default = personality_id
         self._save_state()
 
@@ -99,6 +99,13 @@ class PersonalityRegistry:
         if count > 0:
             self._save_state()
         return count
+
+    def _missing_personality_message(self, personality_id: str) -> str:
+        installed = ", ".join(sorted(self._installed)) or "(none)"
+        return (
+            f"Personality '{personality_id}' not installed. "
+            f"Installed personalities: {installed}."
+        )
 
     def _load_state(self) -> None:
         """Load registry state from disk."""
