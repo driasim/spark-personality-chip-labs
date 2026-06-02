@@ -96,8 +96,10 @@ def set_active_personality(
 
 def clear_active_personality() -> None:
     """Remove the active personality setting."""
-    if ACTIVE_FILE.exists():
-        ACTIVE_FILE.unlink()
+    # Use missing_ok=True so a concurrent clear (or pre-cleared state)
+    # does not crash with FileNotFoundError; this matches the EAFP style
+    # already used for CACHE_FILE.unlink() below.
+    ACTIVE_FILE.unlink(missing_ok=True)
     clear_cache()
 
 
