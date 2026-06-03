@@ -7,12 +7,12 @@ Follows the same pattern as Spark Intelligence Builder's ChipRegistry.
 Storage: ~/.spark/personality_registry.json
 """
 
-import json
 from pathlib import Path
 from typing import Optional
 
 from .loader import load_personality, load_all_personalities
 from .schema import PersonalityChip
+from .storage import atomic_write_json, read_json_object
 
 REGISTRY_FILE = Path.home() / ".spark" / "personality_registry.json"
 
@@ -54,7 +54,7 @@ class PersonalityRegistry:
     def assign(self, agent_id: str, personality_id: str) -> None:
         """Assign a personality to an agent."""
         if personality_id not in self._installed:
-            raise ValueError(f"Personality '{personality_id}' not installed")
+            raise ValueError(self._missing_personality_message(personality_id))
         self._active[agent_id] = personality_id
         self._save_state()
 
@@ -73,7 +73,7 @@ class PersonalityRegistry:
     def set_default(self, personality_id: str) -> None:
         """Set the global default personality for agents without assignment."""
         if personality_id not in self._installed:
-            raise ValueError(f"Personality '{personality_id}' not installed")
+            raise ValueError(self._missing_personality_message(personality_id))
         self._default = personality_id
         self._save_state()
 
@@ -100,21 +100,25 @@ class PersonalityRegistry:
             self._save_state()
         return count
 
+    def _missing_personality_message(self, personality_id: str) -> str:
+        installed = ", ".join(sorted(self._installed)) or "(none)"
+        return (
+            f"Personality '{personality_id}' not installed. "
+            f"Installed personalities: {installed}."
+        )
+
     def _load_state(self) -> None:
         """Load registry state from disk."""
-        if not self._path.exists():
+        state = read_json_object(self._path)
+        if state is None:
             return
-        try:
-            with open(self._path, "r", encoding="utf-8") as f:
-                state = json.load(f)
-            self._active = state.get("active", {})
-            self._default = state.get("default")
-        except (json.JSONDecodeError, IOError):
-            pass
+        active = state.get("active", {})
+        self._active = active if isinstance(active, dict) else {}
+        default = state.get("default")
+        self._default = default if isinstance(default, str) else None
 
     def _save_state(self) -> None:
         """Persist registry state to disk."""
-        self._path.parent.mkdir(parents=True, exist_ok=True)
         state = {
             "active": self._active,
             "default": self._default,
@@ -123,5 +127,4 @@ class PersonalityRegistry:
                 for chip in self._installed.values()
             ],
         }
-        with open(self._path, "w", encoding="utf-8") as f:
-            json.dump(state, f, indent=2)
+        atomic_write_json(self._path, state)

@@ -144,6 +144,12 @@ class TestAdaptive:
         ctx = build_personality_context(chip, style="adaptive", user_state="bored")
         assert "no specific adaptation" in ctx.lower() or "defaults" in ctx.lower()
 
+    def test_unknown_state_omits_empty_voice_line(self):
+        chip = _make_chip(identity={"id": "ctx-test", "name": "ContextTest", "voice_signature": ""})
+        ctx = build_personality_context(chip, style="adaptive", user_state="bored")
+        assert "Voice:" not in ctx
+        assert not ctx.endswith("\n")
+
     def test_without_state_falls_back(self):
         chip = _make_chip()
         ctx = build_personality_context(chip, style="adaptive")

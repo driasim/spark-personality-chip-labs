@@ -17,12 +17,12 @@ and adds a `personality_ext` block for personality-specific data
 that Spark Consciousness ignores but personality hooks can use.
 """
 
-import json
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
 from .schema import PersonalityChip
+from .storage import atomic_write_json, read_json_object
 
 BRIDGE_DIR = Path.home() / ".spark" / "bridges" / "consciousness"
 BRIDGE_FILE = BRIDGE_DIR / "emotional_context.v1.json"
@@ -75,9 +75,7 @@ def write_bridge(
     """
     payload = build_bridge_payload(chip, session_id)
 
-    bridge_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(bridge_path, "w", encoding="utf-8") as f:
-        json.dump(payload, f, indent=2)
+    atomic_write_json(bridge_path, payload)
 
     return payload
 
@@ -178,13 +176,8 @@ def read_bridge(bridge_path: Path = BRIDGE_FILE) -> Optional[dict]:
     Returns None if no bridge file exists.
     Marks payload with _stale=True if past TTL.
     """
-    if not bridge_path.exists():
-        return None
-
-    try:
-        with open(bridge_path, "r", encoding="utf-8") as f:
-            payload = json.load(f)
-    except (json.JSONDecodeError, IOError):
+    payload = read_json_object(bridge_path)
+    if payload is None:
         return None
 
     # Check staleness -- bridge.v1 uses generated_at + meta.ttl_seconds
@@ -193,7 +186,10 @@ def read_bridge(bridge_path: Path = BRIDGE_FILE) -> Optional[dict]:
     ttl = meta.get("ttl_seconds", 120) if isinstance(meta, dict) else 120
     if ts:
         try:
-            written = datetime.fromisoformat(ts)
+            if not isinstance(ts, str):
+                raise TypeError
+            normalized_ts = ts[:-1] + "+00:00" if ts.endswith("Z") else ts
+            written = datetime.fromisoformat(normalized_ts)
             if written.tzinfo is None:
                 written = written.replace(tzinfo=timezone.utc)
             age = (datetime.now(timezone.utc) - written).total_seconds()
@@ -207,8 +203,7 @@ def read_bridge(bridge_path: Path = BRIDGE_FILE) -> Optional[dict]:
 
 def clear_bridge(bridge_path: Path = BRIDGE_FILE) -> None:
     """Remove the bridge file (reset to no personality)."""
-    if bridge_path.exists():
-        bridge_path.unlink()
+    bridge_path.unlink(missing_ok=True)
 
 
 # ── Value Mapping Helpers ──

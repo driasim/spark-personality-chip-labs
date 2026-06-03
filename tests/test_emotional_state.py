@@ -16,6 +16,8 @@ from personality_engine.emotional_state import (
     pad_to_intensity,
     build_emotional_state_for_bridge,
     reset_emotional_state,
+    _load_state,
+    _save_state,
 )
 
 
@@ -135,6 +137,10 @@ class TestPADMappings:
         emotion = pad_to_primary_emotion(PADVector(0.5, 0.3, 0.1))
         assert emotion in ("delighted", "energized", "focused", "contemplative", "steady", "concerned", "gentle")
 
+    def test_pad_to_emotion_requires_threshold_distance(self):
+        emotion = pad_to_primary_emotion(PADVector(0.1, -0.2, -0.2))
+        assert emotion == "steady"
+
     def test_pad_to_mood(self):
         assert pad_to_mood(PADVector(0.0, 0.3, 0.3)) == "builder"
         assert pad_to_mood(PADVector(0.3, -0.3, 0.0)) == "zen"
@@ -166,3 +172,49 @@ class TestBridgeIntegration:
         chip = _make_chip()
         state = build_emotional_state_for_bridge(chip, persist=False)
         assert isinstance(state["primary_emotion"], str)
+
+
+class TestSaveStateCleanup:
+    def test_load_state_ignores_non_object_state(self, tmp_path):
+        state_file = tmp_path / "emotional_state.json"
+        state_file.write_text(json.dumps(["not", "an", "object"]), encoding="utf-8")
+
+        with patch("personality_engine.emotional_state._STATE_FILE", state_file):
+            pad, updated_at = _load_state()
+
+        assert pad == PADVector()
+        assert updated_at == 0.0
+
+    def test_load_state_ignores_malformed_pad_or_timestamp(self, tmp_path):
+        state_file = tmp_path / "emotional_state.json"
+        state_file.write_text(
+            json.dumps({"pad": ["not", "a", "mapping"], "updated_at": "bad"}),
+            encoding="utf-8",
+        )
+
+        with patch("personality_engine.emotional_state._STATE_FILE", state_file):
+            pad, updated_at = _load_state()
+
+        assert pad == PADVector()
+        assert updated_at == 0.0
+
+    def test_save_state_cleans_temp_file_after_replace_failure(self, tmp_path):
+        state_file = tmp_path / "emotional_state.json"
+
+        with patch("personality_engine.emotional_state._STATE_FILE", state_file):
+            with patch("os.replace", side_effect=OSError("simulated replace failure")):
+                _save_state(PADVector(0.5, 0.3, 0.1))
+
+        assert list(tmp_path.glob("*.tmp")) == []
+
+    def test_save_state_normal_flow(self, tmp_path):
+        state_file = tmp_path / "emotional_state.json"
+
+        with patch("personality_engine.emotional_state._STATE_FILE", state_file):
+            _save_state(PADVector(0.5, 0.3, 0.1))
+            loaded_pad, updated_at = _load_state()
+
+        assert abs(loaded_pad.pleasure - 0.5) < 0.01
+        assert abs(loaded_pad.arousal - 0.3) < 0.01
+        assert abs(loaded_pad.dominance - 0.1) < 0.01
+        assert updated_at > 0
