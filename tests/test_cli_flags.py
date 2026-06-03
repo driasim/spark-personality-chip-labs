@@ -1,4 +1,4 @@
 import subprocess
-def test_cli_help():
+def test_scripts_help():
     r = subprocess.run(["python3","scripts/personality_cli.py","-h"], capture_output=True, timeout=5)
     assert r.returncode == 0
