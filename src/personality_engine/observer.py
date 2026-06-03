@@ -11,6 +11,7 @@ Lightweight: Keyword-based detection, no ML inference required.
 """
 
 import json
+import logging
 import re
 from datetime import datetime, timezone
 from pathlib import Path
@@ -253,4 +254,5 @@ def _log_drift(personality_id: str, report: dict) -> None:
         with open(log_path, "a", encoding="utf-8") as f:
             f.write(json.dumps(entry) + "\n")
     except IOError:
-        pass
+        logger = logging.getLogger(__name__)
+        logger.error("Failed to write drift observation to %s", log_path)
