@@ -26,10 +26,15 @@ def main():
     subcommand = sys.argv[1]
 
     if subcommand == "hooks":
-        # Shift argv so hooks.main() sees the hook name as argv[1]
-        sys.argv = [sys.argv[0]] + sys.argv[2:]
-        from .hooks import main as hooks_main
-        hooks_main()
+        # Use a copy of sys.argv for hooks.main() instead of mutating it globally
+        hooks_argv = [sys.argv[0]] + sys.argv[2:]
+        saved_argv = sys.argv
+        sys.argv = hooks_argv
+        try:
+            from .hooks import main as hooks_main
+            hooks_main()
+        finally:
+            sys.argv = saved_argv
     else:
         print(
             f"Unknown subcommand: {subcommand!r}. Known subcommands: hooks",
