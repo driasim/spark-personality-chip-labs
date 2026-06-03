@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from .active import get_active_personality
+from .active import get_active_personality, get_active_personality_id
 from .ib_connector import build_builder_personality_import
 
 MAX_HOOK_INPUT_BYTES = 1_000_000
@@ -18,8 +18,17 @@ def handle_personality_hook(payload: dict[str, Any]) -> dict[str, Any]:
     if not human_id or not agent_id:
         raise ValueError("personality hook requires human_id and agent_id.")
 
-    chip = get_active_personality(project_dir=str(Path.cwd()))
+    project_dir = str(Path.cwd())
+    chip = get_active_personality(project_dir=project_dir)
     if chip is None:
+        configured_id = get_active_personality_id(project_dir=project_dir)
+        if configured_id:
+            raise ValueError(
+                f"Active personality id {configured_id!r} is configured but no matching "
+                "personality chip file was found. Check ~/.spark/chips/personality/ or "
+                "the repo personalities/ directory for "
+                f"{configured_id}.personality.yaml (or {configured_id}/personality.yaml)."
+            )
         raise ValueError(
             "No active personality chip is configured. Set SPARK_PERSONALITY, "
             "write ~/.spark/active_personality.json, or add a project .personality file."
@@ -57,7 +66,10 @@ def _read_hook_payload(path: Path) -> dict[str, Any]:
         raise ValueError("Spark hook input file not found.")
     if path.stat().st_size > MAX_HOOK_INPUT_BYTES:
         raise ValueError("Spark hook input payload is too large.")
-    payload = json.loads(path.read_text(encoding="utf-8"))
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, ValueError) as exc:
+        raise ValueError(f"Spark hook input at {path} contains invalid JSON: {exc}") from exc
     if not isinstance(payload, dict):
         raise ValueError("Spark hook input payload must be a JSON object.")
     return payload

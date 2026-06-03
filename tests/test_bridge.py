@@ -4,6 +4,7 @@ import json
 import pytest
 from datetime import datetime, timezone
 from pathlib import Path
+from unittest.mock import patch
 
 from personality_engine.schema import build_personality, SCHEMA_VERSION
 from personality_engine.bridge import (
@@ -229,9 +230,48 @@ class TestBridgeIO:
         clear_bridge(bridge_path)
         assert not bridge_path.exists()
 
+    def test_clear_missing_file_is_noop(self, tmp_path):
+        bridge_path = tmp_path / "missing_bridge.json"
+
+        clear_bridge(bridge_path)
+
+        assert not bridge_path.exists()
+
     def test_read_nonexistent(self, tmp_path):
         payload = read_bridge(tmp_path / "nope.json")
         assert payload is None
+
+    def test_non_string_generated_at_is_ignored(self, tmp_path):
+        bridge_path = tmp_path / "test_bridge.json"
+        bridge_path.write_text(
+            json.dumps({
+                "schema_version": "bridge.v1",
+                "generated_at": 123,
+                "meta": {"ttl_seconds": 1},
+            }),
+            encoding="utf-8",
+        )
+
+        payload = read_bridge(bridge_path)
+
+        assert payload is not None
+        assert "_stale" not in payload
+
+    def test_z_suffixed_generated_at_is_checked_for_staleness(self, tmp_path):
+        bridge_path = tmp_path / "test_bridge.json"
+        bridge_path.write_text(
+            json.dumps({
+                "schema_version": "bridge.v1",
+                "generated_at": "2000-01-01T00:00:00Z",
+                "meta": {"ttl_seconds": 1},
+            }),
+            encoding="utf-8",
+        )
+
+        payload = read_bridge(bridge_path)
+
+        assert payload is not None
+        assert payload["_stale"] is True
 
     def test_naive_generated_at_is_checked_for_staleness(self, tmp_path):
         """Older bridge files without timezone info should still honor TTL."""
@@ -265,6 +305,25 @@ class TestBridgeIO:
 
         assert payload is not None
         assert "_stale" not in payload
+
+    def test_read_non_object_bridge_returns_none(self, tmp_path):
+        bridge_path = tmp_path / "test_bridge.json"
+        bridge_path.write_text(json.dumps(["not", "an", "object"]), encoding="utf-8")
+
+        assert read_bridge(bridge_path) is None
+
+    def test_write_bridge_preserves_old_file_after_replace_failure(self, tmp_path):
+        chip = _make_chip()
+        bridge_path = tmp_path / "test_bridge.json"
+        old_payload = {"schema_version": "bridge.v1", "generated_at": "old"}
+        bridge_path.write_text(json.dumps(old_payload), encoding="utf-8")
+
+        with patch("personality_engine.storage.os.replace", side_effect=OSError("boom")):
+            with pytest.raises(OSError):
+                write_bridge(chip, bridge_path=bridge_path)
+
+        assert json.loads(bridge_path.read_text(encoding="utf-8")) == old_payload
+        assert list(tmp_path.glob("*.tmp")) == []
 
 
 class TestVerbosityMapping:
