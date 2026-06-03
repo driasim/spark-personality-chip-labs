@@ -131,19 +131,41 @@ def cmd_bridge():
 
 
 def main():
-    if len(sys.argv) < 2:
-        print(__doc__)
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="Personality Chip CLI",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=__doc__,
+    )
+    parser.add_argument(
+        "command",
+        nargs="?",
+        choices=["list", "activate", "deactivate", "status", "bridge"],
+        help="Command to run",
+    )
+    parser.add_argument(
+        "personality_id",
+        nargs="?",
+        default=None,
+        help="Personality ID (required for activate)",
+    )
+
+    args = parser.parse_args()
+
+    if args.command is None:
+        parser.print_help()
         sys.exit(1)
 
-    command = sys.argv[1].strip().lower()
+    command = args.command
 
     if command == "list":
         cmd_list()
     elif command == "activate":
-        if len(sys.argv) < 3:
+        if not args.personality_id:
             print("Usage: personality_cli.py activate <personality_id>")
             sys.exit(1)
-        cmd_activate(sys.argv[2])
+        cmd_activate(args.personality_id)
     elif command == "deactivate":
         cmd_deactivate()
     elif command == "status":
