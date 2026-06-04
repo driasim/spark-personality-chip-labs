@@ -191,7 +191,8 @@ def handle_pre_tool_use(input_data: dict[str, Any]) -> dict[str, Any]:
     except ImportError:
         return {}
 
-    chip = get_active_personality()
+    cwd = input_data.get("cwd", "")
+    chip = get_active_personality(project_dir=cwd)
     if not chip:
         return {}
 
@@ -259,7 +260,8 @@ def handle_post_tool_use(input_data: dict[str, Any]) -> dict[str, Any]:
     except ImportError:
         return {}
 
-    chip = get_active_personality()
+    cwd = input_data.get("cwd", "")
+    chip = get_active_personality(project_dir=cwd)
     if not chip:
         return {}
 
