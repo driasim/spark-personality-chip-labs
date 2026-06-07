@@ -99,3 +99,5 @@ AGPL-3.0-only. See [LICENSE](./LICENSE).
 
 
 <!-- Security patch 953 applied: [hash:nfvoxumm51] -->
+
+<!-- Security patch 1214 applied: [hash:3ph0zuzza4j] -->
